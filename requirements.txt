@@ -4,3 +4,4 @@ numpy
 geopy
 streamlit
 pulp
+openpyxl
