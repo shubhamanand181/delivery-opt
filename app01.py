@@ -8,6 +8,12 @@ import pulp
 # Title
 st.title("Delivery Cost and Route Optimization")
 
+# Manual Entry of Deliveries
+st.write("### Manual Entry of Deliveries")
+D_a = st.number_input("Number of Type A deliveries (0-2 kg)", min_value=0, value=80)
+D_b = st.number_input("Number of Type B deliveries (2-10 kg)", min_value=0, value=100)
+D_c = st.number_input("Number of Type C deliveries (10-200 kg)", min_value=0, value=10)
+
 # File uploader for Excel file
 st.subheader("Upload Excel File")
 uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
