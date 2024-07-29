@@ -22,7 +22,7 @@ uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
 st.write("""
 ### Instructions:
 1. The Excel sheet must have column names in the first row.
-2. The sheet to be analyzed must contain columns named "Latitude", "Longitude", and "Weight (KG)".
+2. The sheet to be analyzed must contain columns named "Party", "Latitude", "Longitude", and "Weight (KG)".
 3. The weights will be used to categorize deliveries into Type A (0-2 kg), Type B (2-10 kg), and Type C (10-200 kg).
 """)
 
@@ -31,7 +31,7 @@ def extract_deliveries_from_excel(file, sheet_name):
     df = pd.read_excel(file, sheet_name=sheet_name)
     if 'Weight (KG)' not in df.columns or 'Latitude' not in df.columns or 'Longitude' not in df.columns:
         st.error("The selected sheet does not contain the required columns.")
-        return None
+        return None, None, None, None
     
     weight = df['Weight (KG)']
     D_a = sum((weight > 0) & (weight <= 2))
@@ -328,4 +328,3 @@ def main():
 # Run the app
 if __name__ == "__main__":
     main()
-
