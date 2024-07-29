@@ -31,18 +31,23 @@ def extract_deliveries_from_excel(file, sheet_name):
     df = pd.read_excel(file, sheet_name=sheet_name)
     if 'Weight (KG)' not in df.columns:
         st.error("The selected sheet does not contain the required 'Weight (KG)' column.")
-        return None
+        return None, None, None
     
-    return df
+    weight = df['Weight (KG)']
+    D_a = sum((weight > 0) & (weight <= 2))
+    D_b = sum((weight > 2) & (weight <= 10))
+    D_c = sum((weight > 10) & (weight <= 200))
+    
+    return D_a, D_b, D_c
 
 # Extract deliveries from uploaded Excel file
 if uploaded_file:
     excel = pd.ExcelFile(uploaded_file)
     sheet_name = st.selectbox("Select Sheet", excel.sheet_names)
     if st.button("Extract Deliveries from Excel"):
-        df_shops = extract_deliveries_from_excel(uploaded_file, sheet_name)
-        if df_shops is not None:
-            st.success("Deliveries extracted successfully.")
+        D_a, D_b, D_c = extract_deliveries_from_excel(uploaded_file, sheet_name)
+        if D_a is not None:
+            st.success(f"Extracted Deliveries - Type A: {D_a}, Type B: {D_b}, Type C: {D_c}")
 
 # Define the distance matrix calculation
 def calculate_distance_matrix(df):
