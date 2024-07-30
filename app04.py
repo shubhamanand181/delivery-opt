@@ -138,13 +138,22 @@ def optimize_vehicle_route(vehicle, assigned_deliveries, df):
 
 # Function to generate an Excel file for route details
 def generate_excel(vehicle_routes):
-    writer = pd.ExcelWriter('Vehicle_Routes.xlsx', engine='xlsxwriter')
+    with pd.ExcelWriter("optimized_routes.xlsx", engine="xlsxwriter") as writer:
+        for vehicle, route in vehicle_routes.items():
+            route_df = pd.DataFrame(route)
+            route_df.to_excel(writer, sheet_name=vehicle, index=False)
+        writer.close()
 
-    for vehicle, route in vehicle_routes.items():
-        df = pd.DataFrame(route)
-        df.to_excel(writer, sheet_name=vehicle, index=False)
+generate_excel(vehicle_routes)
 
-    writer.save()
+st.write("Excel file with optimized routes for each vehicle:")
+st.download_button(
+    label="Download Excel file",
+    data=open("optimized_routes.xlsx", "rb").read(),
+    file_name="optimized_routes.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
 
 # Function to optimize routes within each cluster
 def nearest_neighbor(distance_matrix, start_index=0):
