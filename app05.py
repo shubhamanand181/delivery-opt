@@ -50,8 +50,6 @@ if uploaded_file:
 
     # Calculate the distance matrix
     distance_matrix = calculate_distance_matrix(df_locations)
-    st.write("Distance Matrix:")
-    st.write(distance_matrix)
 
     # Define the maximum distance for points to be considered in the same cluster
     epsilon = 100  # meters
@@ -62,12 +60,9 @@ if uploaded_file:
 
     # Add cluster labels to the DataFrame
     df_locations['Cluster'] = db.labels_
-    st.write(df_locations)
 
     # Calculate centroids of clusters
     centroids = df_locations.groupby('Cluster')[['Latitude', 'Longitude']].mean()
-    st.write("Centroids:")
-    st.write(centroids)
 
     def nearest_neighbor(distance_matrix, start_index=0):
         num_locations = len(distance_matrix)
@@ -139,15 +134,11 @@ if uploaded_file:
             "Total Distance (km)": total_distance / 1000
         })
 
-    st.write("Vehicle Routes:")
-    for vehicle, routes in vehicle_routes.items():
-        st.write(f"{vehicle} Routes:")
-        for route_info in routes:
-            st.write(f"Cluster {route_info['Cluster']} Route:")
-            st.write(route_info["Route"])
-            st.write(f"Total Distance: {route_info['Total Distance (km)']:.2f} kilometers")
-
     summary_df = pd.DataFrame(summary_data)
+
+    # Display updated centroids section with additional columns
+    st.subheader("Centroids Information")
+    st.write(summary_df)
 
     # Function to generate Excel file
     def generate_excel(vehicle_routes, summary_df):
@@ -160,7 +151,7 @@ if uploaded_file:
                     route_df = pd.DataFrame(route_info["Route"])
                     route_df['Sequence'] = range(1, len(route_df) + 1)
                     route_df.to_excel(writer, sheet_name=f"{vehicle}_Cluster_{route_info['Cluster']}", index=False)
-            writer.close()
+            writer.save()
 
     generate_excel(vehicle_routes, summary_df)
 
