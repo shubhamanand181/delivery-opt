@@ -150,14 +150,14 @@ def display_summary(vehicle_routes):
 
 # Function to generate Excel file
 def generate_excel(vehicle_routes, summary_df):
-    with pd.ExcelWriter('/mnt/data/optimized_routes.xlsx', engine='xlsxwriter') as writer:
+    with pd.ExcelWriter('optimized_routes.xlsx', engine='xlsxwriter') as writer:
         for vehicle, df in vehicle_routes.items():
             df.to_excel(writer, sheet_name=f'{vehicle}_routes', index=False)
         
         summary_df.to_excel(writer, sheet_name='Summary', index=False)
     
-    st.write("Download the optimized routes and summary:")
-    st.download_button(label="Download Excel file", data=open('/mnt/data/optimized_routes.xlsx', 'rb'), file_name='optimized_routes.xlsx')
+    with open('optimized_routes.xlsx', 'rb') as file:
+        btn = st.download_button(label="Download Excel file", data=file, file_name='optimized_routes.xlsx')
 
 # Main code
 if uploaded_file:
