@@ -151,7 +151,7 @@ if uploaded_file:
                     route_df = pd.DataFrame(route_info["Route"])
                     route_df['Sequence'] = range(1, len(route_df) + 1)
                     route_df.to_excel(writer, sheet_name=f"{vehicle}_Cluster_{route_info['Cluster']}", index=False)
-            writer.save()
+            writer.close()
 
     generate_excel(vehicle_routes, summary_df)
 
