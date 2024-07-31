@@ -52,7 +52,7 @@ if uploaded_file:
     distance_matrix = calculate_distance_matrix(df_locations)
 
     # Define the maximum distance for points to be considered in the same cluster
-    epsilon = 100  # meters
+    epsilon = 200  # meters
 
     # Apply DBSCAN
     db = DBSCAN(eps=epsilon, min_samples=1, metric='precomputed')
