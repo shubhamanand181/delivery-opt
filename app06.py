@@ -202,6 +202,7 @@ if st.button("Optimize Load"):
     st.write(f"Deliveries assigned to V2: {result.get('Deliveries assigned to V2', 'N/A')}")
     st.write(f"Deliveries assigned to V3: {result.get('Deliveries assigned to V3', 'N/A')}")
 
+    # Assign deliveries to vehicles
     vehicle_assignments = {
         "V3": df_locations[df_locations['Weight (KG)'] <= 2],
         "V2": df_locations[(df_locations['Weight (KG)'] > 2) & (df_locations['Weight (KG)'] <= 10)],
@@ -224,7 +225,7 @@ if st.button("Generate Routes"):
         st.write("Generating routes...")
 
         # Cluster locations using DBSCAN
-        epsilon = 100  # meters
+        epsilon = 500  # meters
         distance_matrix = calculate_distance_matrix(df_locations)
         db = DBSCAN(eps=epsilon, min_samples=1, metric='precomputed')
         db.fit(distance_matrix)
