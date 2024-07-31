@@ -203,9 +203,9 @@ if st.button("Optimize Load"):
     st.write(f"Deliveries assigned to V3: {result.get('Deliveries assigned to V3', 'N/A')}")
 
     vehicle_assignments = {
-        "V1": df_locations[df_locations['Weight (KG)'] <= 2],
+        "V3": df_locations[df_locations['Weight (KG)'] <= 2],
         "V2": df_locations[(df_locations['Weight (KG)'] > 2) & (df_locations['Weight (KG)'] <= 10)],
-        "V3": df_locations[df_locations['Weight (KG)'] > 10]
+        "V1": df_locations[df_locations['Weight (KG)'] > 10]
     }
 
     if scenario == "Scenario 2: V1, V2":
