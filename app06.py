@@ -183,6 +183,8 @@ def optimize_scenario_3(D_a, D_b, D_c, cost_v1, cost_v3, v1_capacity, v3_capacit
         "Deliveries assigned to V3": pulp.value(A3)
     }
 
+vehicle_assignments = {}
+
 # Load optimization button
 if st.button("Optimize Load"):
     if scenario == "Scenario 1: V1, V2, V3":
@@ -219,6 +221,62 @@ if st.button("Optimize Load"):
         st.write(f"{vehicle}: {len(df)} deliveries")
         st.write(df)
 
+# Function to calculate distance matrix
+def calculate_distance_matrix(df):
+    num_locations = len(df)
+    distance_matrix = np.zeros((num_locations, num_locations))
+
+    for i in range(num_locations):
+        for j in range(num_locations):
+            if i != j:
+                try:
+                    coords_1 = (float(df.iloc[i]['Latitude']), float(df.iloc[j]['Longitude']))
+                    coords_2 = (float(df.iloc[j]['Latitude']), float(df.iloc[j]['Longitude']))
+                    distance_matrix[i][j] = great_circle(coords_1, coords_2).meters
+                except ValueError as e:
+                    st.error(f"Invalid coordinates at index {i} or {j}: {e}")
+                    distance_matrix[i][j] = np.inf  # Assign a large value to indicate invalid distance
+            else:
+                distance_matrix[i][j] = 0
+    return distance_matrix
+
+# Function to determine vehicle for a cluster
+def determine_vehicle_for_cluster(vehicle_assignments, cluster):
+    for vehicle, df in vehicle_assignments.items():
+        if set(cluster['Party']).issubset(set(df['Party'])):
+            return vehicle
+    return None
+
+# Function to optimize the route
+def nearest_neighbor(distance_matrix, start_index=0):
+    num_locations = len(distance_matrix)
+    visited = [False] * num_locations
+    route = [start_index]
+    total_distance = 0
+
+    current_index = start_index
+    visited[current_index] = True
+
+    for _ in range(num_locations - 1):
+        next_index = None
+        min_distance = np.inf
+
+        for j in range(num_locations):
+            if not visited[j] and distance_matrix[current_index][j] < min_distance:
+                next_index = j
+                min_distance = distance_matrix[current_index][j]
+
+        route.append(next_index)
+        total_distance += min_distance
+        current_index = next_index
+        visited[current_index] = True
+
+    # Return to the start point
+    route.append(start_index)
+    total_distance += distance_matrix[current_index][start_index]
+
+    return route, total_distance
+
 # Route generation trigger
 if st.button("Generate Routes"):
     if vehicle_assignments:
@@ -234,7 +292,11 @@ if st.button("Generate Routes"):
         # Calculate centroids
         centroids = df_locations.groupby('Cluster')[['Latitude', 'Longitude']].mean()
         st.write("Centroids:")
-        st.write(centroids)
+        centroids_summary = pd.DataFrame(centroids)
+        centroids_summary["Vehicle Type"] = ""
+        centroids_summary["Number of Shops"] = ""
+        centroids_summary["Total Distance"] = ""
+        st.write(centroids_summary)
 
         vehicle_routes = {vehicle: [] for vehicle in vehicle_assignments}
 
@@ -264,37 +326,33 @@ if st.button("Generate Routes"):
                 "Total Distance": total_distance / 1000  # Convert to kilometers
             })
 
-        st.write("Vehicle Routes:")
-        for vehicle, routes in vehicle_routes.items():
-            st.write(f"{vehicle} Routes:")
-            for route_info in routes:
-                st.write(f"Cluster {route_info['Cluster']} Route:")
-                st.write(route_info['Route'])
-                st.write(f"Total Distance: {route_info['Total Distance']} kilometers")
+            centroids_summary.at[cluster_id, "Vehicle Type"] = vehicle
+            centroids_summary.at[cluster_id, "Number of Shops"] = len(cluster)
+            centroids_summary.at[cluster_id, "Total Distance"] = total_distance / 1000
 
-        def generate_excel(vehicle_routes, summary_df):
-            with pd.ExcelWriter('/mnt/data/vehicle_routes.xlsx', engine='xlsxwriter') as writer:
-                for vehicle, routes in vehicle_routes.items():
-                    for i, route_info in enumerate(routes):
-                        df = pd.DataFrame(route_info['Route'])
-                        df.to_excel(writer, sheet_name=f"{vehicle}_Cluster_{route_info['Cluster']}", index=False)
-                summary_df.to_excel(writer, sheet_name='Summary', index=False)
+            st.write(f"Cluster {cluster_id} Route:")
+            st.write(mapped_route)
+            st.write(f"Total Distance: {total_distance / 1000:.2f} kilometers")
 
-        # Generate summary DataFrame
-        summary_data = []
-        for vehicle, routes in vehicle_routes.items():
-            for route_info in routes:
-                cluster_id = route_info['Cluster']
-                centroid = centroids.loc[cluster_id]
-                summary_data.append({
-                    "Cluster": cluster_id,
-                    "Vehicle": vehicle,
-                    "Latitude": centroid['Latitude'],
-                    "Longitude": centroid['Longitude'],
-                    "Number of Shops": len(route_info['Route']),
-                    "Total Distance": route_info['Total Distance']
-                })
+        # Function to generate Excel
+        def generate_excel(vehicle_routes, centroids_summary):
+            writer = pd.ExcelWriter('vehicle_routes.xlsx', engine='xlsxwriter')
 
-        summary_df = pd.DataFrame(summary_data)
-        generate_excel(vehicle_routes, summary_df)
-        st.success("Routes generated and saved to vehicle_routes.xlsx")
+            # Write each vehicle's routes to separate sheets
+            for vehicle, routes in vehicle_routes.items():
+                df = pd.DataFrame()
+                for route in routes:
+                    cluster_df = pd.DataFrame(route["Route"])
+                    cluster_df["Total Distance (km)"] = route["Total Distance"]
+                    df = pd.concat([df, cluster_df], ignore_index=True)
+                df.to_excel(writer, sheet_name=f'{vehicle}_Routes', index=False)
+
+            # Write summary sheet
+            centroids_summary.to_excel(writer, sheet_name='Summary', index=True)
+            writer.close()
+
+        generate_excel(vehicle_routes, centroids_summary)
+
+        st.success("Routes generated and Excel file created.")
+    else:
+        st.error("Please optimize the load first.")
