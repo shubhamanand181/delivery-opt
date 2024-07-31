@@ -211,9 +211,9 @@ if st.button("Optimize Load"):
 
     # Store the load optimization results in session state
     st.session_state['vehicle_assignments'] = {
-        "V1": df_locations[df_locations['Weight (KG)'] <= 2],
+        "V3": df_locations[df_locations['Weight (KG)'] <= 2],
         "V2": df_locations[(df_locations['Weight (KG)'] > 2) & (df_locations['Weight (KG)'] <= 10)],
-        "V3": df_locations[df_locations['Weight (KG)'] > 10]
+        "V1": df_locations[df_locations['Weight (KG)'] > 10]
     }
 
     if scenario == "Scenario 2: V1, V2":
@@ -294,7 +294,7 @@ if st.button("Generate Routes"):
 
         for vehicle, df_shops in vehicle_assignments.items():
             # Cluster locations using DBSCAN
-            epsilon = 100  # meters
+            epsilon = 500  # meters
             distance_matrix = calculate_distance_matrix(df_shops)
             db = DBSCAN(eps=epsilon, min_samples=1, metric='precomputed')
             db.fit(distance_matrix)
