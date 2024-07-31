@@ -22,44 +22,45 @@ uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
 st.write("""
 ### Instructions:
 1. The Excel sheet must have column names in the first row.
-2. The sheet to be analyzed must contain a column named "Weight (KG)".
+2. The sheet to be analyzed must contain columns named "Party", "Latitude", "Longitude", and "Weight (KG)".
 3. The weights will be used to categorize deliveries into Type A (0-2 kg), Type B (2-10 kg), and Type C (10-200 kg).
 """)
 
-# Extract deliveries from uploaded Excel file
+# Ensure uploaded file is processed
 if uploaded_file:
-    excel = pd.ExcelFile(uploaded_file)
-    sheet_name = st.selectbox("Select Sheet", excel.sheet_names)
-    if st.button("Extract Deliveries from Excel"):
-        df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
-        if 'Weight (KG)' in df.columns:
+    df_locations = pd.read_excel(uploaded_file)
+    
+    # Check if necessary columns are present
+    if not all(col in df_locations.columns for col in ['Party', 'Latitude', 'Longitude', 'Weight (KG)']):
+        st.error("One or more expected columns are missing. Please check the column names in the Excel file.")
+    else:
+        st.success("File successfully uploaded and columns verified.")
+        
+        # Function to extract delivery data from the DataFrame
+        def extract_deliveries_from_df(df):
             weight = df['Weight (KG)']
             D_a = sum((weight > 0) & (weight <= 2))
             D_b = sum((weight > 2) & (weight <= 10))
             D_c = sum((weight > 10) & (weight <= 200))
-            st.success(f"Extracted Deliveries - Type A: {D_a}, Type B: {D_b}, Type C: {D_c}")
-        else:
-            st.error("The selected sheet does not contain the required 'Weight (KG)' column.")
+            return D_a, D_b, D_c
+        
+        # Extract deliveries from the DataFrame
+        D_a, D_b, D_c = extract_deliveries_from_df(df_locations)
+        st.success(f"Extracted Deliveries - Type A: {D_a}, Type B: {D_b}, Type C: {D_c}")
 
-# Display vehicle descriptions
+# Vehicle descriptions
 vehicle_descriptions = {
     "V1": "A versatile vehicle capable of handling all types of deliveries with a higher cost and larger capacity (a four wheeler mini-truck).",
     "V2": "A mid-range vehicle that can handle types A and B deliveries with moderate cost and capacity (a three wheeler EV).",
     "V3": "A cost-effective vehicle that handles only type A deliveries with the smallest capacity (a two wheeler EV)."
 }
 
-st.subheader("Vehicle Information")
-st.text("V1: " + vehicle_descriptions["V1"])
-st.text("V2: " + vehicle_descriptions["V2"])
-st.text("V3: " + vehicle_descriptions["V3"])
-
-# User input for vehicle capacities
+# User input for vehicle capacities and costs
 st.subheader("Vehicle Capacities (deliveries per day)")
 v1_capacity = st.number_input("Capacity of V1", min_value=1, value=64)
 v2_capacity = st.number_input("Capacity of V2", min_value=1, value=66)
 v3_capacity = st.number_input("Capacity of V3", min_value=1, value=72)
 
-# User input for vehicle costs
 st.subheader("Vehicle Costs (INR per day)")
 cost_v1 = st.number_input("Cost of V1", min_value=0.0, value=2416.0)
 cost_v2 = st.number_input("Cost of V2", min_value=0.0, value=1270.0)
@@ -182,6 +183,7 @@ def optimize_scenario_3(D_a, D_b, D_c, cost_v1, cost_v3, v1_capacity, v3_capacit
         "Deliveries assigned to V3": pulp.value(A3)
     }
 
+# Load optimization button
 if st.button("Optimize Load"):
     if scenario == "Scenario 1: V1, V2, V3":
         result = optimize_scenario_1(D_a, D_b, D_c, cost_v1, cost_v2, cost_v3, v1_capacity, v2_capacity, v3_capacity)
@@ -189,102 +191,53 @@ if st.button("Optimize Load"):
         result = optimize_scenario_2(D_a, D_b, D_c, cost_v1, cost_v2, v1_capacity, v2_capacity)
     elif scenario == "Scenario 3: V1, V3":
         result = optimize_scenario_3(D_a, D_b, D_c, cost_v1, cost_v3, v1_capacity, v3_capacity)
-    
+
     st.write("Load Optimization Results:")
     st.write(f"Status: {result['Status']}")
-    st.write(f"V1: {result['V1']}")
-    if "V2" in result:
-        st.write(f"V2: {result['V2']}")
-    if "V3" in result:
-        st.write(f"V3: {result['V3']}")
+    st.write(f"V1: {result.get('V1', 'N/A')}")
+    st.write(f"V2: {result.get('V2', 'N/A')}")
+    st.write(f"V3: {result.get('V3', 'N/A')}")
     st.write(f"Total Cost: {result['Total Cost']}")
-    st.write(f"Deliveries assigned to V1: {result['Deliveries assigned to V1']}")
-    if "Deliveries assigned to V2" in result:
-        st.write(f"Deliveries assigned to V2: {result['Deliveries assigned to V2']}")
-    if "Deliveries assigned to V3" in result:
-        st.write(f"Deliveries assigned to V3: {result['Deliveries assigned to V3']}")
+    st.write(f"Deliveries assigned to V1: {result.get('Deliveries assigned to V1', 'N/A')}")
+    st.write(f"Deliveries assigned to V2: {result.get('Deliveries assigned to V2', 'N/A')}")
+    st.write(f"Deliveries assigned to V3: {result.get('Deliveries assigned to V3', 'N/A')}")
 
-    # Generate routes based on load optimization
-    if st.button("Generate Routes"):
-        df_locations = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+    vehicle_assignments = {
+        "V1": df_locations[df_locations['Weight (KG)'] <= 2],
+        "V2": df_locations[(df_locations['Weight (KG)'] > 2) & (df_locations['Weight (KG)'] <= 10)],
+        "V3": df_locations[df_locations['Weight (KG)'] > 10]
+    }
 
-        # Ensure column names are as expected
-        expected_columns = ['Party', 'Latitude', 'Longitude', 'Weight (KG)']
-        if not all(col in df_locations.columns for col in expected_columns):
-            st.error("One or more expected columns are missing. Please check the column names in the Excel file.")
-            st.stop()
+    if scenario == "Scenario 2: V1, V2":
+        vehicle_assignments.pop("V3")
+    elif scenario == "Scenario 3: V1, V3":
+        vehicle_assignments.pop("V2")
 
-        # Remove rows with NaN values in Latitude or Longitude
-        df_locations.dropna(subset=['Latitude', 'Longitude'], inplace=True)
+    st.write("Vehicle Assignments:")
+    for vehicle, df in vehicle_assignments.items():
+        st.write(f"{vehicle}: {len(df)} deliveries")
+        st.write(df)
 
-        def calculate_distance_matrix(df):
-            num_locations = len(df)
-            distance_matrix = np.zeros((num_locations, num_locations))
+# Route generation trigger
+if st.button("Generate Routes"):
+    if vehicle_assignments:
+        st.write("Generating routes...")
 
-            for i in range(num_locations):
-                for j in range(num_locations):
-                    if i != j:
-                        try:
-                            coords_1 = (float(df.loc[i, 'Latitude']), float(df.loc[j, 'Longitude']))
-                            coords_2 = (float(df.loc[j, 'Latitude']), float(df.loc[j, 'Longitude']))
-                            distance_matrix[i][j] = great_circle(coords_1, coords_2).meters
-                        except ValueError as e:
-                            st.error(f"Invalid coordinates at index {i} or {j}: {e}")
-                            distance_matrix[i][j] = np.inf  # Assign a large value to indicate invalid distance
-                    else:
-                        distance_matrix[i][j] = 0
-            return distance_matrix
-
-        # Calculate the distance matrix
-        distance_matrix = calculate_distance_matrix(df_locations)
-
-        # Define the maximum distance for points to be considered in the same cluster
+        # Cluster locations using DBSCAN
         epsilon = 100  # meters
-
-        # Apply DBSCAN
+        distance_matrix = calculate_distance_matrix(df_locations)
         db = DBSCAN(eps=epsilon, min_samples=1, metric='precomputed')
         db.fit(distance_matrix)
-
-        # Add cluster labels to the DataFrame
         df_locations['Cluster'] = db.labels_
 
-        # Calculate centroids of clusters
+        # Calculate centroids
         centroids = df_locations.groupby('Cluster')[['Latitude', 'Longitude']].mean()
+        st.write("Centroids:")
+        st.write(centroids)
 
-        def nearest_neighbor(distance_matrix, start_index=0):
-            num_locations = len(distance_matrix)
-            visited = [False] * num_locations
-            route = [start_index]
-            total_distance = 0
+        vehicle_routes = {vehicle: [] for vehicle in vehicle_assignments}
 
-            current_index = start_index
-            visited[current_index] = True
-
-            for _ in range(num_locations - 1):
-                next_index = None
-                min_distance = np.inf
-
-                for j in range(num_locations):
-                    if not visited[j] and distance_matrix[current_index][j] < min_distance:
-                        next_index = j
-                        min_distance = distance_matrix[current_index][j]
-
-                route.append(next_index)
-                total_distance += min_distance
-                current_index = next_index
-                visited[current_index] = True
-
-            # Return to the start point
-            route.append(start_index)
-            total_distance += distance_matrix[current_index][start_index]
-
-            return route, total_distance
-
-        # Calculate distance matrix for each cluster and plan routes
-        vehicle_routes = {'V1': [], 'V2': [], 'V3': []}
-        clusters = df_locations['Cluster'].unique()
-
-        for cluster_id in clusters:
+        for cluster_id in df_locations['Cluster'].unique():
             cluster = df_locations[df_locations['Cluster'] == cluster_id]
             num_locations = len(cluster)
 
@@ -301,37 +254,14 @@ if st.button("Optimize Load"):
 
             # Optimize route for the cluster
             route, total_distance = nearest_neighbor(distance_matrix)
-            mapped_route = cluster.index[route]
+            mapped_route = cluster.iloc[route]
 
-            vehicle_type = None
-            if cluster_id < result['V1']:
-                vehicle_type = 'V1'
-            elif cluster_id < result['V1'] + result['V2']:
-                vehicle_type = 'V2'
-            elif cluster_id < result['V1'] + result['V2'] + result['V3']:
-                vehicle_type = 'V3'
-
-            vehicle_routes[vehicle_type].append({
-                'Cluster': cluster_id,
-                'Route': cluster.iloc[route].to_dict('records'),
-                'Total Distance': total_distance / 1000  # Scale down for display
+            vehicle = determine_vehicle_for_cluster(vehicle_assignments, cluster)
+            vehicle_routes[vehicle].append({
+                "Cluster": cluster_id,
+                "Route": mapped_route.to_dict('records'),
+                "Total Distance": total_distance / 1000  # Convert to kilometers
             })
-
-        # Create distance matrix for centroids
-        num_clusters = len(centroids)
-        centroid_distance_matrix = np.zeros((num_clusters, num_clusters))
-
-        for i in range(num_clusters):
-            for j in range(num_clusters):
-                if i != j:
-                    coords_1 = (centroids.iloc[i]['Latitude'], centroids.iloc[j]['Longitude'])
-                    coords_2 = (centroids.iloc[j]['Latitude'], centroids.iloc[j]['Longitude'])
-                    centroid_distance_matrix[i][j] = great_circle(coords_1, coords_2).meters
-                else:
-                    centroid_distance_matrix[i][j] = np.inf
-
-        # Optimize route for the centroids (clusters)
-        centroid_route, centroid_total_distance = nearest_neighbor(centroid_distance_matrix)
 
         st.write("Vehicle Routes:")
         for vehicle, routes in vehicle_routes.items():
@@ -341,13 +271,29 @@ if st.button("Optimize Load"):
                 st.write(route_info['Route'])
                 st.write(f"Total Distance: {route_info['Total Distance']} kilometers")
 
-        def generate_excel(vehicle_routes):
+        def generate_excel(vehicle_routes, summary_df):
             with pd.ExcelWriter('/mnt/data/vehicle_routes.xlsx', engine='xlsxwriter') as writer:
                 for vehicle, routes in vehicle_routes.items():
                     for i, route_info in enumerate(routes):
                         df = pd.DataFrame(route_info['Route'])
                         df.to_excel(writer, sheet_name=f"{vehicle}_Cluster_{route_info['Cluster']}", index=False)
-                writer.save()
+                summary_df.to_excel(writer, sheet_name='Summary', index=False)
 
-        generate_excel(vehicle_routes)
+        # Generate summary DataFrame
+        summary_data = []
+        for vehicle, routes in vehicle_routes.items():
+            for route_info in routes:
+                cluster_id = route_info['Cluster']
+                centroid = centroids.loc[cluster_id]
+                summary_data.append({
+                    "Cluster": cluster_id,
+                    "Vehicle": vehicle,
+                    "Latitude": centroid['Latitude'],
+                    "Longitude": centroid['Longitude'],
+                    "Number of Shops": len(route_info['Route']),
+                    "Total Distance": route_info['Total Distance']
+                })
+
+        summary_df = pd.DataFrame(summary_data)
+        generate_excel(vehicle_routes, summary_df)
         st.success("Routes generated and saved to vehicle_routes.xlsx")
