@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from geopy.distance import great_circle
 import pulp
+import tempfile
 import os
 
 # Streamlit app title
@@ -205,7 +206,7 @@ def generate_routes(vehicle_assignments, df_locations):
 
 # Function to generate Excel file with routes and summary
 def generate_excel(vehicle_routes, summary_df):
-    file_path = '/mnt/data/optimized_routes.xlsx'
+    file_path = os.path.join(tempfile.gettempdir(), 'optimized_routes.xlsx')
     with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
         for vehicle, clusters in vehicle_routes.items():
             for cluster in clusters:
