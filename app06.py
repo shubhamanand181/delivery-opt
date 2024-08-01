@@ -202,19 +202,17 @@ def generate_routes(vehicle_assignments, df_locations):
 # Function to generate Excel file with routes and summary
 def generate_excel(vehicle_routes, summary_df):
     file_path = '/mnt/data/optimized_routes.xlsx'
-    if not os.path.exists(os.path.dirname(file_path)):
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
     with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
         for vehicle, clusters in vehicle_routes.items():
             for cluster in clusters:
                 df_cluster = pd.DataFrame(cluster['Route'])
-                df_cluster.to_excel(writer, sheet_name=f"{vehicle}_Cluster_{cluster['Centroids']['Cluster'].iloc[0]}", index=False)
+                df_cluster.to_excel(writer, sheet_name=f"{vehicle}_Cluster_{int(cluster['Centroids']['Cluster'])}", index=False)
 
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
 
     st.write("Routes and Summary saved to Excel file.")
-    st.write(f"[Download Excel File]({file_path})")
+    st.write(f"[Download Excel File](file_path)")
 
 if uploaded_file is not None:
     df_locations = pd.read_excel(uploaded_file)
