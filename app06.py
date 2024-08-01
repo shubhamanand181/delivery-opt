@@ -160,7 +160,7 @@ def generate_routes(vehicle_assignments, df_locations):
             st.write(f"Invalid distance matrix for {vehicle}")
             continue
 
-        db = DBSCAN(eps=100, min_samples=1, metric='precomputed')
+        db = DBSCAN(eps=500, min_samples=1, metric='precomputed')
         db.fit(distance_matrix)
         df_vehicle['Cluster'] = db.labels_
 
