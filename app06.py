@@ -5,41 +5,65 @@ from sklearn.cluster import DBSCAN
 from geopy.distance import great_circle
 import pulp
 
-# Streamlit app title
-st.title("Delivery Optimization App")
-
-# File uploader for Excel file
-st.subheader("Upload Excel File")
-uploaded_file = st.file_uploader("Choose an Excel file", type="xlsx")
-
-# Instructions for Excel Upload
-st.write("""
-### Instructions:
-1. The Excel sheet must have column names in the first row.
-2. The sheet to be analyzed must contain columns named "Party", "Latitude", "Longitude", and "Weight (KG)".
-3. The weights will be used to categorize deliveries into Type A (0-2 kg), Type B (2-10 kg), and Type C (10-200 kg).
-""")
-
-# Function to extract delivery data from the selected sheet
 def extract_deliveries_from_excel(file):
     df = pd.read_excel(file)
-    if not all(col in df.columns for col in ['Party', 'Latitude', 'Longitude', 'Weight (KG)']):
-        st.error("The selected sheet does not contain the required columns.")
+    expected_columns = ['Party', 'Latitude', 'Longitude', 'Weight (KG)']
+    if all(col in df.columns for col in expected_columns):
+        df = df.dropna(subset=['Latitude', 'Longitude'])
+        return df
+    else:
+        st.error("One or more expected columns are missing. Please check the column names in the Excel file.")
         return None
-    
-    # Remove rows with NaN values in Latitude or Longitude
-    df.dropna(subset=['Latitude', 'Longitude'], inplace=True)
-    
-    return df
 
-# Categorize weights
 def categorize_weights(df):
     D_a = df[(df['Weight (KG)'] > 0) & (df['Weight (KG)'] <= 2)]
     D_b = df[(df['Weight (KG)'] > 2) & (df['Weight (KG)'] <= 10)]
     D_c = df[(df['Weight (KG)'] > 10) & (df['Weight (KG)'] <= 200)]
     return D_a, D_b, D_c
 
-# Load optimization function
+def calculate_distance_matrix(df):
+    num_locations = len(df)
+    distance_matrix = np.zeros((num_locations, num_locations))
+
+    for i in range(num_locations):
+        for j in range(num_locations):
+            if i != j:
+                coords_1 = (df.loc[i, 'Latitude'], df.loc[i, 'Longitude'])
+                coords_2 = (df.loc[j, 'Latitude'], df.loc[j, 'Longitude'])
+                distance_matrix[i][j] = great_circle(coords_1, coords_2).meters
+            else:
+                distance_matrix[i][j] = 0
+    return distance_matrix
+
+def nearest_neighbor(distance_matrix, start_index=0):
+    num_locations = len(distance_matrix)
+    visited = [False] * num_locations
+    route = [start_index]
+    total_distance = 0
+
+    current_index = start_index
+    visited[current_index] = True
+
+    for _ in range(num_locations - 1):
+        next_index = None
+        min_distance = np.inf
+
+        for j in range(num_locations):
+            if not visited[j] and distance_matrix[current_index][j] < min_distance:
+                next_index = j
+                min_distance = distance_matrix[current_index][j]
+
+        route.append(next_index)
+        total_distance += min_distance
+        current_index = next_index
+        visited[current_index] = True
+
+    # Return to the start point
+    route.append(start_index)
+    total_distance += distance_matrix[current_index][start_index]
+
+    return route, total_distance
+
 def optimize_load(D_a_count, D_b_count, D_c_count, cost_v1, cost_v2, cost_v3, v1_capacity, v2_capacity, v3_capacity, scenario):
     if scenario == "Scenario 1: V1, V2, V3":
         lp_problem = pulp.LpProblem("Delivery_Cost_Minimization", pulp.LpMinimize)
@@ -117,61 +141,47 @@ def optimize_load(D_a_count, D_b_count, D_c_count, cost_v1, cost_v2, cost_v3, v1
 
     return {
         "Status": pulp.LpStatus[lp_problem.status],
-        "V1": pulp.value(V1) if 'V1' in locals() else 0,
-        "V2": pulp.value(V2) if 'V2' in locals() else 0,
-        "V3": pulp.value(V3) if 'V3' in locals() else 0,
+        "V1": pulp.value(V1),
+        "V2": pulp.value(V2) if scenario in ["Scenario 1: V1, V2, V3", "Scenario 2: V1, V2"] else None,
+        "V3": pulp.value(V3) if scenario in ["Scenario 1: V1, V2, V3", "Scenario 3: V1, V3"] else None,
         "Total Cost": pulp.value(lp_problem.objective),
-        "Deliveries assigned to V1": pulp.value(C1) + pulp.value(B1) + pulp.value(A1) if 'C1' in locals() else 0,
-        "Deliveries assigned to V2": pulp.value(B2) + pulp.value(A2) if 'B2' in locals() else 0,
-        "Deliveries assigned to V3": pulp.value(A3) if 'A3' in locals() else 0
+        "Deliveries assigned to V1": pulp.value(C1 + B1 + A1),
+        "Deliveries assigned to V2": pulp.value(B2 + A2) if scenario in ["Scenario 1: V1, V2, V3", "Scenario 2: V1, V2"] else None,
+        "Deliveries assigned to V3": pulp.value(A3) if scenario in ["Scenario 1: V1, V2, V3", "Scenario 3: V1, V3"] else None
     }
 
-# Generate routes function
 def generate_routes(vehicle_assignments, df_locations):
-    vehicle_routes = {}
-    epsilon = 500  # meters
-
-    for vehicle, indices in vehicle_assignments.items():
-        df_vehicle = df_locations.loc[indices].reset_index(drop=True)
+    vehicle_routes = {"V1": [], "V2": [], "V3": []}
+    for vehicle, indexes in vehicle_assignments.items():
+        df_vehicle = df_locations.loc[indexes].reset_index(drop=True)
+        st.write(f"Processing {vehicle} with {len(df_vehicle)} locations")
 
         if df_vehicle.empty:
+            st.write(f"No locations for {vehicle}")
             continue
 
+        # Calculate the distance matrix for the vehicle
         distance_matrix = calculate_distance_matrix(df_vehicle)
+        epsilon = 500  # meters for DBSCAN clustering
         db = DBSCAN(eps=epsilon, min_samples=1, metric='precomputed')
         db.fit(distance_matrix)
         df_vehicle['Cluster'] = db.labels_
 
-        centroids = df_vehicle.groupby('Cluster')[['Latitude', 'Longitude']].mean()
-        cluster_routes = []
-
-        for cluster_id, cluster_data in df_vehicle.groupby('Cluster'):
-            cluster_indices = cluster_data.index.tolist()
-            cluster_distance_matrix = distance_matrix[np.ix_(cluster_indices, cluster_indices)]
-
-            route, total_distance = nearest_neighbor(cluster_distance_matrix)
-            mapped_route = cluster_data.index[route]
-
-            cluster_routes.append({
-                "Cluster": cluster_id,
-                "Route": df_vehicle.loc[mapped_route].to_dict('records'),
-                "Total Distance": total_distance / 1000  # in kilometers
-            })
-
-        vehicle_routes[vehicle] = cluster_routes
+        # Calculate centroids of clusters
+        centroids = df_vehicle.groupby('Cluster')[['Latitude', 'Longitude']].mean().reset_index()
+        vehicle_routes[vehicle].append({"Route": df_vehicle, "Centroids": centroids})
 
     return vehicle_routes
 
-# Summary display function
 def display_summary(vehicle_routes):
     summary_data = []
     for vehicle, clusters in vehicle_routes.items():
         for cluster in clusters:
-            total_distance = cluster['Total Distance']
-            centroid = cluster['Route'][0]  # Assume the first point as centroid for simplicity
+            centroid = cluster['Centroids'].iloc[0]
+            total_distance = cluster['Route']['Distance'].sum() if 'Distance' in cluster['Route'].columns else 0
             summary_data.append({
+                "Cluster": cluster['Centroids']['Cluster'].iloc[0],
                 "Vehicle": vehicle,
-                "Cluster": cluster['Cluster'],
                 "Latitude": centroid['Latitude'],
                 "Longitude": centroid['Longitude'],
                 "Number of Shops": len(cluster['Route']),
@@ -181,7 +191,6 @@ def display_summary(vehicle_routes):
     st.write(summary_df)
     return summary_df
 
-# Excel generation function
 def generate_excel(vehicle_routes, summary_df):
     with pd.ExcelWriter('/mnt/data/optimized_routes.xlsx', engine='xlsxwriter') as writer:
         for vehicle, clusters in vehicle_routes.items():
@@ -191,7 +200,10 @@ def generate_excel(vehicle_routes, summary_df):
         
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
 
-# Load and route optimization section
+# Streamlit UI
+st.title("Delivery Optimization App")
+uploaded_file = st.file_uploader("Choose an Excel file", type=["xlsx"])
+
 if uploaded_file:
     df_locations = extract_deliveries_from_excel(uploaded_file)
     
