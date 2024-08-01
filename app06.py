@@ -202,7 +202,8 @@ def generate_routes(vehicle_assignments, df_locations):
 # Function to generate Excel file with routes and summary
 def generate_excel(vehicle_routes, summary_df):
     file_path = '/mnt/data/optimized_routes.xlsx'
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    if not os.path.exists(os.path.dirname(file_path)):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
     with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
         for vehicle, clusters in vehicle_routes.items():
