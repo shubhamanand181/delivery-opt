@@ -160,7 +160,7 @@ def generate_routes(vehicle_assignments, df_locations):
             st.write(f"Invalid distance matrix for {vehicle}")
             continue
 
-        db = DBSCAN(eps=500, min_samples=1, metric='precomputed')
+        db = DBSCAN(eps=100, min_samples=1, metric='precomputed')
         db.fit(distance_matrix)
         df_vehicle['Cluster'] = db.labels_
 
@@ -206,9 +206,8 @@ def generate_routes(vehicle_assignments, df_locations):
 
 # Function to generate Excel file with routes and summary
 def generate_excel(vehicle_routes, summary_df):
-    file_path = '/mnt/data/optimized_routes.xlsx'
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-
+    file_path = 'optimized_routes.xlsx'
+    
     with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
         for vehicle, clusters in vehicle_routes.items():
             for cluster in clusters:
@@ -218,7 +217,7 @@ def generate_excel(vehicle_routes, summary_df):
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
 
     st.write("Routes and Summary saved to Excel file.")
-    st.write(f"[Download Excel File](file_path)")
+    st.write(f"[Download Excel File]({file_path})")
 
 if uploaded_file is not None:
     df_locations = pd.read_excel(uploaded_file)
