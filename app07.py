@@ -150,12 +150,11 @@ def generate_routes(vehicle_assignments, df_locations):
         df_vehicle = df_locations.loc[indices]
 
         if df_vehicle.empty:
-            st.write(f"No deliveries assigned to {vehicle}.")
+            st.write(f"No deliveries assigned to {vehicle}")
             continue
 
         distance_matrix = calculate_distance_matrix(df_vehicle)
 
-        # Ensure no invalid distances
         if np.isinf(distance_matrix).any() or np.isnan(distance_matrix).any():
             st.write(f"Invalid distance matrix for {vehicle}")
             continue
@@ -207,8 +206,6 @@ def generate_routes(vehicle_assignments, df_locations):
 # Function to generate Excel file with routes and summary
 def generate_excel(vehicle_routes, summary_df):
     file_path = '/mnt/data/optimized_routes.xlsx'
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    
     with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
         for vehicle, clusters in vehicle_routes.items():
             for cluster in clusters:
