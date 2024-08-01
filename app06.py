@@ -141,18 +141,21 @@ def nearest_neighbor(distance_matrix, start_index=0):
 
     return route, total_distance
 
-# Function to generate routes for each vehicle
-def generate_routes(vehicle_assignments, df):
+# Function to generate routes based on vehicle assignments
+def generate_routes(vehicle_assignments, df_locations):
     vehicle_routes = {}
     summary_data = []
 
     for vehicle, indices in vehicle_assignments.items():
-        df_vehicle = df.loc[indices].reset_index(drop=True)
+        df_vehicle = df_locations.loc[indices]
         distance_matrix = calculate_distance_matrix(df_vehicle)
+        
+        # Ensure no invalid distances
+        if np.isinf(distance_matrix).any() or np.isnan(distance_matrix).any():
+            st.write(f"Invalid distance matrix for {vehicle}")
+            continue
 
-        # Apply DBSCAN clustering
-        epsilon = 500  # meters
-        db = DBSCAN(eps=epsilon, min_samples=1, metric='precomputed')
+        db = DBSCAN(eps=500, min_samples=1, metric='precomputed')
         db.fit(distance_matrix)
         df_vehicle['Cluster'] = db.labels_
 
@@ -167,7 +170,7 @@ def generate_routes(vehicle_assignments, df):
             for i in range(num_locations):
                 for j in range(num_locations):
                     if i != j:
-                        coords_1 = (cluster.iloc[i]['Latitude'], cluster.iloc[i]['Longitude'])
+                        coords_1 = (cluster.iloc[i]['Latitude'], cluster.iloc[j]['Longitude'])
                         coords_2 = (cluster.iloc[j]['Latitude'], cluster.iloc[j]['Longitude'])
                         cluster_distance_matrix[i][j] = great_circle(coords_1, coords_2).meters
                     else:
